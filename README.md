@@ -1,2 +1,2 @@
 # FE-startup-super-project
-The frontend is part of an innovative startup project
+The frontend part of an innovative startup project
