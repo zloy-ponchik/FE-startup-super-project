@@ -1,12 +1,13 @@
+
 {
   "manifest_version": 3,
-  "name": "Show Selected Text Pop-up",
+  "name": "НейроShlapa",
   "version": "1.0",
-  "description": "Displays selected text in a pop-up window.",
+  "description": "Ультимативное расширение для комфортного скролинга ленты в тик-токе",
   "permissions": [
     "scripting",
-    "activeTab"
-    
+    "activeTab",
+    "storage" 
   ],
   "background": {
     "service_worker": "background.js"
@@ -18,7 +19,7 @@
       "run_at": "document_idle"
     }
   ],
-  "action": {  
+  "action": {
     "default_popup": "popup/popup.html",
     "default_icon": {
       "16": "icons/icon16.png",
