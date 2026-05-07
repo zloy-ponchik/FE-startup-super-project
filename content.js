@@ -7,11 +7,34 @@ let copyButton = null;
 let currentSelectionRange = null;
 let currentSelectedText = '';
 
+// Время анимации исчезновения кнопки
+const REMOVE_ANIMATION_DURATION = 200;
+
 // Переменные для popup
 let floatingPopupElement = null;
 let floatingPopupContentElement = null;
 let floatingPopupCloseButtonElement = null;
 let popupStylesApplied = false; 
+
+
+// CSS-правила для анимации исчезновения
+const COPY_BUTTON_REMOVE_STYLE = `
+  @keyframes fadeOut {
+    from { opacity: 1; transform: scale(1); }
+    to { opacity: 0; transform: scale(0.9); }
+  }
+  .copy-button-fade-out {
+    animation: fadeOut ${REMOVE_ANIMATION_DURATION}ms ease-out forwards;
+  }
+`;
+
+// Внедряем стили для анимации (если еще не внедрены)
+if (!document.getElementById('copy-button-animation-styles')) {
+  const style = document.createElement('style');
+  style.id = 'copy-button-animation-styles';
+  style.textContent = COPY_BUTTON_REMOVE_STYLE;
+  document.head.appendChild(style);
+}
 
 // Встроенный HTML и CSS для popup 
 const POPUP_HTML_CONTENT = `
@@ -28,6 +51,21 @@ const POPUP_HTML_CONTENT = `
 
 const POPUP_CSS_CONTENT = `
 /* popup_template/popup.css */
+
+@keyframes fadeOut {
+    from { opacity: 1; transform: scale(1); }
+    to { opacity: 0; transform: scale(0.9); }
+}
+@keyframes fadeIn {
+    from { opacity: 0; transform: scale(1); }
+    to { opacity: 1; transform: scale(0.9); }
+}
+.popup-fade-out {
+    animation: fadeOut ${REMOVE_ANIMATION_DURATION}ms ease-out forwards;
+}
+.popup-fade-in {
+    animation: fadeIn ${REMOVE_ANIMATION_DURATION}ms ease-out forwards;
+}
 #dynamic-text-popup {
   position: fixed; 
   z-index: 10001; 
@@ -82,6 +120,15 @@ const POPUP_CSS_CONTENT = `
 
 // Функции для создания и управления  popup 
 
+
+
+
+
+
+
+
+
+
 function createFloatingPopup(text) {
   if (floatingPopupElement) {
     removeFloatingPopup();
@@ -94,7 +141,6 @@ function createFloatingPopup(text) {
       styleElement.textContent = POPUP_CSS_CONTENT;
       document.head.appendChild(styleElement);
       popupStylesApplied = true;
-      console.log("Popup CSS applied.");
     }
 
     // DOM-элемент для popup из HTML строки
@@ -135,15 +181,21 @@ function createFloatingPopup(text) {
 
     floatingPopupCloseButtonElement.addEventListener('click', removeFloatingPopup);
 
-    console.log("Popup HTML structure loaded.");
 
     //  Вставка текста и позиционирование 
     if (floatingPopupContentElement) {
       floatingPopupContentElement.textContent = text || 'No text selected.';
     }
 
-    document.body.appendChild(floatingPopupElement);
-    console.log("Floating popup appended to body.");
+  floatingPopupElement.classList.add('popup-fade-in');
+    setTimeout(() => {
+       document.body.appendChild(floatingPopupElement);
+        positionFloatingPopup();
+    window.addEventListener('resize', positionFloatingPopup);
+    }, REMOVE_ANIMATION_DURATION);
+
+
+   
 
     positionFloatingPopup();
     window.addEventListener('resize', positionFloatingPopup);
@@ -174,6 +226,29 @@ function positionFloatingPopup() {
   floatingPopupElement.style.top = `${top}px`;
   floatingPopupElement.style.left = `${left}px`;
 }
+
+
+// Удаление popup с анимацией
+function removeFloatingPopup() {
+  if (!floatingPopupElement) {
+    return; 
+  }
+  floatingPopupElement.classList.remove('popup-fade-in');
+  floatingPopupElement.classList.add('popup-fade-out');
+  setTimeout(() => {
+    if (floatingPopupElement && floatingPopupElement.parentNode) {
+      floatingPopupElement.remove();
+    }
+    floatingPopupElement = null;
+    floatingPopupContentElement = null;
+    floatingPopupCloseButtonElement = null;
+    window.removeEventListener('resize', positionFloatingPopup);
+  }, 200 /*REMOVE_ANIMATION_DURATION*/);
+}
+
+/*
+
+// Удаление popup без анимаций
 function removeFloatingPopup() {
   if (floatingPopupElement) {
     floatingPopupElement.remove();
@@ -181,15 +256,16 @@ function removeFloatingPopup() {
     floatingPopupContentElement = null;
     floatingPopupCloseButtonElement = null;
     window.removeEventListener('resize', positionFloatingPopup);
-    console.log("Floating popup removed.");
   }
 }
+*/
 
+// Отображение кнопки
 function showCopyButton() {
   const selection = window.getSelection();
   const selectedText = selection.toString().trim();
 
-  if (selectedText.length === 0) {
+  if (selectedText.length <= 1 || selectedText.length >= 1000 ) {
     removeCopyButton();
     currentSelectionRange = null;
     currentSelectedText = '';
@@ -226,6 +302,7 @@ function showCopyButton() {
   }
 }
 
+// Функция создания кнопки и задание стилей 
 function createCopyButton() {
   if (copyButton) {
     return;
@@ -237,23 +314,22 @@ function createCopyButton() {
 
   copyButton.style.position = 'absolute';
   copyButton.style.zIndex = '10000';
-  copyButton.style.height = '50px';
+  copyButton.style.height = '35px';
   copyButton.style.border = '2px solid #3ac4ffbb';
   copyButton.style.backgroundColor = '#ffffff';
   copyButton.style.cursor = 'pointer';
   copyButton.style.borderRadius = '3px';
   copyButton.style.fontFamily = 'sans-serif';
-  copyButton.style.fontSize = '20px';
+  copyButton.style.fontSize = '16px';
   copyButton.style.whiteSpace = 'nowrap';
 
-
   document.body.appendChild(copyButton)
-  console.log("Copy button appended to body.");
 
   copyButton.addEventListener('click', () => {
-    console.log("Button clicked. Creating floating popup with text:", currentSelectedText);
-    createFloatingPopup(currentSelectedText); // <-- Ошибка была здесь: `appendChild` вызывалась с `copyButton`
+    setTimeout(() => {
+    createFloatingPopup(currentSelectedText); 
     removeCopyButton();
+  }, 10);
   });
 ;
   
@@ -298,7 +374,24 @@ function rangesAreEqual(range1, range2) {
          range1.endContainer === range2.endContainer &&
          range1.endOffset === range2.endOffset;
 }
+// Удаление кнопки с анимациями 
+function removeCopyButton() {
+  if (!copyButton) {
+    return; 
+  }
+  copyButton.classList.add('copy-button-fade-out');
+  setTimeout(() => {
+    if (copyButton && copyButton.parentNode) {
+      copyButton.remove();
+    }
+    copyButton = null;
+    currentSelectionRange = null;
+    currentSelectedText = '';
+  }, REMOVE_ANIMATION_DURATION);
+}
 
+/*
+// Удаление кнопки без анимаций
 function removeCopyButton() {
   if (copyButton) {
     copyButton.remove();
@@ -308,19 +401,19 @@ function removeCopyButton() {
     console.log("Copy button removed.");
   }
 }
+*/
 
 document.addEventListener('mouseup', () => {
   setTimeout(() => {
     showCopyButton();
-  }, 50);
+  }, 5);
 });
-/*
+
 document.addEventListener('mousedown', () => {
-  removeCopyButton();
-  console.log("--------------.");
+  //removeCopyButton();
   removeFloatingPopup();
 });
-*/
+
 document.addEventListener('scroll', () => {
   if (copyButton) {
     updateButtonPosition();
@@ -356,15 +449,15 @@ document.addEventListener('mousemove', (event) => {
         }
       } else {
         removeCopyButton();
-        removeFloatingPopup();
+        //removeFloatingPopup();
       }
     } else {
       removeCopyButton();
-      removeFloatingPopup();
+      //removeFloatingPopup();
     }
   } else {
     removeCopyButton();
-    removeFloatingPopup();
+    //removeFloatingPopup();
   }
 });
 
