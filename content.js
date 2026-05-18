@@ -1,14 +1,13 @@
 
 // Основная логика Расширения
 
-
 // Переменные для кнопки
 let copyButton = null;
 let currentSelectionRange = null;
 let currentSelectedText = '';
 
 // Время анимации исчезновения кнопки
-const REMOVE_ANIMATION_DURATION = 200;
+const ANIMATION_DURATION = 200;
 
 // Переменные для popup
 let floatingPopupElement = null;
@@ -24,8 +23,22 @@ const COPY_BUTTON_REMOVE_STYLE = `
     to { opacity: 0; transform: scale(0.9); }
   }
   .copy-button-fade-out {
-    animation: fadeOut ${REMOVE_ANIMATION_DURATION}ms ease-out forwards;
+    animation: fadeOut ${ANIMATION_DURATION}ms ease-out forwards;
   }
+
+  .show-text-popup-button {
+    position: absolute;
+    z-index: 10000;
+    height: 35px;
+    border: '2px solid #3ac4ffbb';
+    background-color: '#ffffff';
+    cursor: 'pointer';
+    border-radius: '3px';
+    font-family: 'sans-serif';
+    font-size: '16px';
+    white-space: 'nowrap';
+}
+
 `;
 
 // Внедряем стили для анимации (если еще не внедрены)
@@ -40,11 +53,12 @@ if (!document.getElementById('copy-button-animation-styles')) {
 const POPUP_HTML_CONTENT = `
 <div id="dynamic-text-popup">
   <div class="popup-header">
-    <h3 id="popup-title">НейроShlapa</h3>
+    <h3 id="popup-title">НейроShlapa</h3> 
     <button id="popup-close-button" title="Close">&times;</button>
   </div>
   <div id="popup-text-content">
-    <!-- Выделенный текст -->
+    
+    <p class="loading-message">Ожидание ответа...</p> 
   </div>
 </div>
 `;
@@ -61,10 +75,10 @@ const POPUP_CSS_CONTENT = `
     to { opacity: 1; transform: scale(0.9); }
 }
 .popup-fade-out {
-    animation: fadeOut ${REMOVE_ANIMATION_DURATION}ms ease-out forwards;
+    animation: fadeOut ${ANIMATION_DURATION}ms ease-out forwards;
 }
 .popup-fade-in {
-    animation: fadeIn ${REMOVE_ANIMATION_DURATION}ms ease-out forwards;
+    animation: fadeIn ${ANIMATION_DURATION}ms ease-out forwards;
 }
 #dynamic-text-popup {
   position: fixed; 
@@ -114,22 +128,44 @@ const POPUP_CSS_CONTENT = `
   white-space: pre-wrap;
   color: #555;
 }
+  .popup-header h3 {
+  margin: 0;
+  font-size: 1.1em;
+  color: #333;
+}
+
+/* Убираем стиль для заголовка, если он был только для "Selected Text" */
+/* ... */
+
+#popup-text-content {
+  font-family: sans-serif;
+  font-size: 14px;
+  white-space: pre-wrap; /* Сохраняет пробелы и переносы строк */
+  color: #555;
+  max-height: 200px; /* Ограничим высоту, чтобы не было слишком громоздко */
+  overflow-y: auto;  /* Добавим скролл, если контента много */
+  padding-right: 5px; /* Небольшой отступ для скроллбара */
+}
+
+.loading-message {
+  color: #888;
+  font-style: italic;
+}
+
+.error-message {
+  color: red;
+  font-weight: bold;
+}
 `;
 //  Конец встроенного содержимого 
 
 
+// --- Адрес вашего бэкенд-сервиса ---
+const BACKEND_API_URL = 'http://localhost:8080/explain'; 
+
 // Функции для создания и управления  popup 
 
-
-
-
-
-
-
-
-
-
-function createFloatingPopup(text) {
+async function createFloatingPopup(text) {
   if (floatingPopupElement) {
     removeFloatingPopup();
   }
@@ -181,10 +217,9 @@ function createFloatingPopup(text) {
 
     floatingPopupCloseButtonElement.addEventListener('click', removeFloatingPopup);
 
-
     //  Вставка текста и позиционирование 
     if (floatingPopupContentElement) {
-      floatingPopupContentElement.textContent = text || 'No text selected.';
+      floatingPopupContentElement.innerHTML = '<p class="loading-message">Ожидание ответа...</p>'; // Показываем сообщение о загрузке
     }
 
   floatingPopupElement.classList.add('popup-fade-in');
@@ -192,12 +227,19 @@ function createFloatingPopup(text) {
        document.body.appendChild(floatingPopupElement);
         positionFloatingPopup();
     window.addEventListener('resize', positionFloatingPopup);
-    }, REMOVE_ANIMATION_DURATION);
+    }, ANIMATION_DURATION);
 
+    // --- ОТПРАВКА ЗАПРОСА НА БЭКЕНД ---
+    const explanation = await fetchExplanation(text);
+    if (explanation) {
+      floatingPopupContentElement.innerHTML = explanation; // Вставляем ответ от бэкенда
+    } else {
+      // Отображаем сообщение об ошибке, если запрос не удался
+      floatingPopupContentElement.innerHTML = '<p class="error-message">Не удалось загрузить ответ. Пожалуйста, попробуйте позже.</p>';
+    }
+    // --- КОНЕЦ ОТПРАВКИ ЗАПРОСА ---
 
-   
-
-    positionFloatingPopup();
+    positionFloatingPopup(); // Позиционируем popup после обновления контента
     window.addEventListener('resize', positionFloatingPopup);
 
     return floatingPopupElement;
@@ -207,6 +249,50 @@ function createFloatingPopup(text) {
     return null;
   }
 }
+
+// --- НОВАЯ ФУНКЦИЯ: Запрос к бэкенду ---
+async function fetchExplanation(textToSend) {
+  if (!textToSend || textToSend.trim().length === 0) {
+    console.warn("No text provided for explanation.");
+    return null;
+  }
+
+  try {
+    const response = await fetch(BACKEND_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ text: textToSend }), // Формируем JSON-тело
+    });
+
+    if (!response.ok) {
+      // Обрабатываем ошибки сервера (400, 404, 500 и т.д.)
+      const errorDetails = await response.text(); // Пытаемся получить детали ошибки
+      console.error(`HTTP error! status: ${response.status}. Details: ${errorDetails}`);
+      // Можно вернуть более информативное сообщение пользователю
+      return `Error: ${response.status} (${response.statusText}). ${errorDetails.substring(0, 100)}...`;
+    }
+
+    const data = await response.json(); // Парсим JSON-ответ
+    console.log("Backend response:", data);
+
+    // Ожидаем, что бэкенд вернет объект с полем 'explanation' (или как там у вас называется)
+    // Замените 'explanation' на реальное имя поля в ответе вашего бэкенда.
+    // Например, если ответ: {"result": "Объяснение..."} то будет data.result
+    if (data && data.explanation) {
+      return data.explanation; // Возвращаем полученное объяснение
+    } else {
+      console.warn("Backend response did not contain an 'explanation' field.");
+      return "No explanation found in the response.";
+    }
+
+  } catch (error) {
+    console.error("Error during fetch to backend:", error);
+    return null; // Возвращаем null, чтобы отобразить сообщение об ошибке
+  }
+}
+
 
 
 function positionFloatingPopup() {
@@ -243,22 +329,8 @@ function removeFloatingPopup() {
     floatingPopupContentElement = null;
     floatingPopupCloseButtonElement = null;
     window.removeEventListener('resize', positionFloatingPopup);
-  }, 200 /*REMOVE_ANIMATION_DURATION*/);
+  }, ANIMATION_DURATION);
 }
-
-/*
-
-// Удаление popup без анимаций
-function removeFloatingPopup() {
-  if (floatingPopupElement) {
-    floatingPopupElement.remove();
-    floatingPopupElement = null;
-    floatingPopupContentElement = null;
-    floatingPopupCloseButtonElement = null;
-    window.removeEventListener('resize', positionFloatingPopup);
-  }
-}
-*/
 
 // Отображение кнопки
 function showCopyButton() {
@@ -312,6 +384,7 @@ function createCopyButton() {
   copyButton.textContent = 'Объяснить'; 
   copyButton.classList.add('show-text-popup-button'); 
 
+
   copyButton.style.position = 'absolute';
   copyButton.style.zIndex = '10000';
   copyButton.style.height = '35px';
@@ -323,7 +396,7 @@ function createCopyButton() {
   copyButton.style.fontSize = '16px';
   copyButton.style.whiteSpace = 'nowrap';
 
-  document.body.appendChild(copyButton)
+  document.body.appendChild(copyButton);
 
   copyButton.addEventListener('click', () => {
     setTimeout(() => {
@@ -331,8 +404,8 @@ function createCopyButton() {
     removeCopyButton();
   }, 10);
   });
-;
-  
+
+
 }
 
 function updateButtonPosition() {
@@ -387,21 +460,8 @@ function removeCopyButton() {
     copyButton = null;
     currentSelectionRange = null;
     currentSelectedText = '';
-  }, REMOVE_ANIMATION_DURATION);
+  }, ANIMATION_DURATION);
 }
-
-/*
-// Удаление кнопки без анимаций
-function removeCopyButton() {
-  if (copyButton) {
-    copyButton.remove();
-    copyButton = null;
-    currentSelectionRange = null;
-    currentSelectedText = '';
-    console.log("Copy button removed.");
-  }
-}
-*/
 
 document.addEventListener('mouseup', () => {
   setTimeout(() => {
