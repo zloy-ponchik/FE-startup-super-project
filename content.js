@@ -153,7 +153,7 @@ const POPUP_CSS_CONTENT = `
 }
 
 .error-message {
-  color: red;
+  color: #e62a2abb;
   font-weight: bold;
 }
 `;
@@ -235,7 +235,7 @@ async function createFloatingPopup(text) {
       floatingPopupContentElement.innerHTML = explanation; // Вставляем ответ от бэкенда
     } else {
       // Отображаем сообщение об ошибке, если запрос не удался
-      floatingPopupContentElement.innerHTML = '<p class="error-message">Не удалось загрузить ответ. Пожалуйста, попробуйте позже.</p>';
+      floatingPopupContentElement.innerHTML = '<p class="error-message">Нет связи с сервером.</p>';
     }
     // --- КОНЕЦ ОТПРАВКИ ЗАПРОСА ---
 
@@ -271,20 +271,18 @@ async function fetchExplanation(textToSend) {
       const errorDetails = await response.text(); // Пытаемся получить детали ошибки
       console.error(`HTTP error! status: ${response.status}. Details: ${errorDetails}`);
       // Можно вернуть более информативное сообщение пользователю
-      return `Error: ${response.status} (${response.statusText}). ${errorDetails.substring(0, 100)}...`;
+      return `<p class="error-message">Не удалось выполнить запрос. Код ошибки: ${response.status}</p> `;
     }
 
     const data = await response.json(); // Парсим JSON-ответ
     console.log("Backend response:", data);
 
-    // Ожидаем, что бэкенд вернет объект с полем 'explanation' (или как там у вас называется)
-    // Замените 'explanation' на реальное имя поля в ответе вашего бэкенда.
-    // Например, если ответ: {"result": "Объяснение..."} то будет data.result
-    if (data && data.explanation) {
-      return data.explanation; // Возвращаем полученное объяснение
+  
+    if (data && data.answer) {
+      return data.answer; // Возвращаем полученное объяснение
     } else {
       console.warn("Backend response did not contain an 'explanation' field.");
-      return "No explanation found in the response.";
+      return "Не удалось отобразить ответ сервера";
     }
 
   } catch (error) {
